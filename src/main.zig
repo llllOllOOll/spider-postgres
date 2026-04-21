@@ -26,61 +26,47 @@ pub fn main(init: std.process.Init) !void {
         .listen() catch |err| return err;
 }
 
-fn getBands(allocator: std.mem.Allocator, req: *spider.Request) !spider.Response {
-    _ = req;
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    const all_bands = try db.query(bands.Band, arena.allocator(), "SELECT id, name, city, genre, formed_year FROM bands ORDER BY id", .{});
-    return spider.Response.json(allocator, all_bands);
+fn getBands(arena: std.mem.Allocator, _: *spider.Request) !spider.Response {
+    const all_bands = try db.query(bands.Band, arena, "SELECT id, name, city, genre, formed_year FROM bands ORDER BY id", .{});
+    return spider.Response.json(arena, all_bands);
 }
 
-fn getBand(allocator: std.mem.Allocator, req: *spider.Request) !spider.Response {
+fn getBand(arena: std.mem.Allocator, req: *spider.Request) !spider.Response {
     const id_str = req.params.get("id") orelse return error.NotFound;
     const band_id = std.fmt.parseInt(i64, id_str, 10) catch return error.InvalidId;
 
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    const result = try db.query(bands.Band, arena.allocator(), "SELECT id, name, city, genre, formed_year FROM bands WHERE id = $1", .{ .id = band_id });
+    const result = try db.query(bands.Band, arena, "SELECT id, name, city, genre, formed_year FROM bands WHERE id = $1", .{ .id = band_id });
 
     if (result.len > 0) {
-        return spider.Response.json(allocator, result[0]);
+        return spider.Response.json(arena, result[0]);
     }
 
-    return spider.Response.json(allocator, .{ .message = "Band not found" });
+    return spider.Response.json(arena, .{ .message = "Band not found" });
 }
 
-fn createBand(allocator: std.mem.Allocator, req: *spider.Request) !spider.Response {
-    const body = try req.bindJson(allocator, bands.BandInput);
+fn createBand(arena: std.mem.Allocator, req: *spider.Request) !spider.Response {
+    const body = try req.bindJson(arena, bands.BandInput);
 
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    const new_result = try db.query(struct { id: i64 }, arena.allocator(), "INSERT INTO bands (name, city, genre, formed_year) VALUES ($1, $2, $3, $4) RETURNING id", .{
+    const new_result = try db.query(struct { id: i64 }, arena, "INSERT INTO bands (name, city, genre, formed_year) VALUES ($1, $2, $3, $4) RETURNING id", .{
         .name = body.name,
         .city = body.city,
         .genre = body.genre,
         .formed_year = body.formed_year,
     });
 
-    return spider.Response.json(allocator, .{ .id = new_result[0].id, .name = body.name });
+    return spider.Response.json(arena, .{ .id = new_result[0].id, .name = body.name });
 }
 
-fn deleteBand(allocator: std.mem.Allocator, req: *spider.Request) !spider.Response {
+fn deleteBand(arena: std.mem.Allocator, req: *spider.Request) !spider.Response {
     const id_str = req.params.get("id") orelse return error.NotFound;
     const band_id = std.fmt.parseInt(i64, id_str, 10) catch return error.InvalidId;
 
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    try db.query(void, arena.allocator(), "DELETE FROM bands WHERE id = $1", .{ .id = band_id });
-    return spider.Response.json(allocator, .{ .deleted = true });
+    try db.query(void, arena, "DELETE FROM bands WHERE id = $1", .{ .id = band_id });
+    return spider.Response.json(arena, .{ .deleted = true });
 }
 
-fn rootHandler(allocator: std.mem.Allocator, req: *spider.Request) !spider.Response {
-    _ = req;
-    return spider.Response.json(allocator, .{
+fn rootHandler(arena: std.mem.Allocator, _: *spider.Request) !spider.Response {
+    return spider.Response.json(arena, .{
         .message = "Bandas de Metal Brasileiro API",
         .endpoints = .{
             .get_bands = "GET /bands",
